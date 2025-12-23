@@ -91,6 +91,21 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(budouxc)
 
+# msdfgen (for MSDF text rendering)
+FetchContent_Declare(
+	msdfgen
+	GIT_REPOSITORY https://github.com/Chlumsky/msdfgen.git
+	GIT_TAG v1.12
+	GIT_SHALLOW TRUE
+	GIT_PROGRESS TRUE
+)
+set(MSDFGEN_CORE_ONLY ON CACHE BOOL "" FORCE)
+set(MSDFGEN_BUILD_STANDALONE OFF CACHE BOOL "" FORCE)
+set(MSDFGEN_USE_SKIA OFF CACHE BOOL "" FORCE)
+set(MSDFGEN_USE_VCPKG OFF CACHE BOOL "" FORCE)
+set(MSDFGEN_INSTALL OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(msdfgen)
+
 #
 # Project files
 #
@@ -118,6 +133,7 @@ set(SKRIBIDI_SOURCE_FILES
 	skb_rich_text_internal.h
 	skb_text.c
 	skb_text_internal.h
+	skb_msdf.cpp
 )
 
 set(SKRIBIDI_API_FILES
@@ -165,7 +181,7 @@ if(NOT WIN32)
 	target_link_libraries(skribidi PUBLIC m)
 endif()
 
-target_link_libraries(skribidi PRIVATE harfbuzz SheenBidi libunibreak budouxc)
+target_link_libraries(skribidi PRIVATE harfbuzz SheenBidi libunibreak budouxc msdfgen-core)
 
 if(MINGW)
     target_compile_options(harfbuzz PRIVATE -Wa,-mbig-obj)
@@ -178,28 +194,31 @@ endif()
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" PREFIX "src" FILES ${SKRIBIDI_SOURCE_FILES})
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/../include" PREFIX "include" FILES ${SKRIBIDI_API_FILES})
 
-install(
-  TARGETS skribidi
-  EXPORT skribidiConfig
-  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-)
+# Only install when building skribidi standalone (not as subdirectory)
+if(PROJECT_IS_TOP_LEVEL)
+  install(
+    TARGETS skribidi
+    EXPORT skribidiConfig
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  )
 
-install(
-  EXPORT skribidiConfig
-  NAMESPACE skribidi::
-  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/skribidi"
-)
+  install(
+    EXPORT skribidiConfig
+    NAMESPACE skribidi::
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/skribidi"
+  )
 
-include(CMakePackageConfigHelpers)
+  include(CMakePackageConfigHelpers)
 
-write_basic_package_version_file(
-  "${CMAKE_CURRENT_BINARY_DIR}/skribidiConfigVersion.cmake"
-  COMPATIBILITY SameMajorVersion
-)
+  write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/skribidiConfigVersion.cmake"
+    COMPATIBILITY SameMajorVersion
+  )
 
-install(
-  FILES "${CMAKE_CURRENT_BINARY_DIR}/skribidiConfigVersion.cmake"
-  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/skribidi"
-)
+  install(
+    FILES "${CMAKE_CURRENT_BINARY_DIR}/skribidiConfigVersion.cmake"
+    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/skribidi"
+  )
+endif()

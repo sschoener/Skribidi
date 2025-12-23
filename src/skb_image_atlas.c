@@ -98,6 +98,7 @@ typedef enum {
 typedef enum {
 	SKB__ITEM_IS_COLOR = 1 << 0,
 	SKB__ITEM_IS_SDF   = 1 << 1,
+	SKB__ITEM_IS_MSDF  = 1 << 2,
 } skb__item_flags_t;
 
 typedef struct skb__item_glyph_t {
@@ -271,7 +272,7 @@ static int32_t skb__round_up(int32_t x, int32_t n)
 
 static skb_atlas_texture_t* skb__add_texture(skb_image_atlas_t* atlas, int32_t desired_width, int32_t desired_height, int32_t bpp)
 {
-	assert(bpp == 4 || bpp == 1);
+	assert(bpp == 4 || bpp == 3 || bpp == 1);
 
 	SKB_ARRAY_RESERVE(atlas->textures, atlas->textures_count+1);
 	int32_t texture_idx = atlas->textures_count++;
@@ -1010,7 +1011,8 @@ skb_quad_t skb_image_atlas_get_glyph_quad(
 	const skb_font_t* font = skb_font_collection_get_font(font_collection, font_handle);
 	if (!font) return (skb_quad_t) {0};
 
-	const skb_image_item_config_t* img_config = alpha_mode == SKB_RASTERIZE_ALPHA_SDF ? &atlas->config.glyph_sdf : &atlas->config.glyph_alpha;
+	// MSDF uses same config as SDF
+	const skb_image_item_config_t* img_config = (alpha_mode == SKB_RASTERIZE_ALPHA_SDF || alpha_mode == SKB_RASTERIZE_ALPHA_MSDF) ? &atlas->config.glyph_sdf : &atlas->config.glyph_alpha;
 
 	const float rounded_font_size = ceilf(font_size * pixel_scale / img_config->rounding) * img_config->rounding;
 	const float clamped_font_size = skb_clampf(rounded_font_size, img_config->min_size, img_config->max_size);
@@ -1036,7 +1038,8 @@ skb_quad_t skb_image_atlas_get_glyph_quad(
 
 		hb_face_t* face = hb_font_get_face(font->hb_font);
 		const bool is_color = hb_ot_color_glyph_has_paint(face, glyph_id);
-		const uint8_t requested_bpp = is_color ? 4 : 1;
+		const bool is_msdf = (alpha_mode == SKB_RASTERIZE_ALPHA_MSDF);
+		const uint8_t requested_bpp = is_color ? 4 : (is_msdf ? 3 : 1);
 
 		const int32_t texture_idx = skb__add_rect_or_grow(atlas, bounds.width, bounds.height, requested_bpp, &texture_offset_x, &texture_offset_y, &packer_handle);
 		if (texture_idx == SKB_INVALID_INDEX)
@@ -1064,7 +1067,8 @@ skb_quad_t skb_image_atlas_get_glyph_quad(
 		item->packer_handle = packer_handle;
 		item->geom_offset_x = (int16_t)bounds.x;
 		item->geom_offset_y = (int16_t)bounds.y;
-		SKB_SET_FLAG(item->flags, SKB__ITEM_IS_SDF, alpha_mode == SKB_RASTERIZE_ALPHA_SDF);
+		SKB_SET_FLAG(item->flags, SKB__ITEM_IS_SDF, alpha_mode == SKB_RASTERIZE_ALPHA_SDF || alpha_mode == SKB_RASTERIZE_ALPHA_MSDF);
+		SKB_SET_FLAG(item->flags, SKB__ITEM_IS_MSDF, alpha_mode == SKB_RASTERIZE_ALPHA_MSDF);
 		SKB_SET_FLAG(item->flags, SKB__ITEM_IS_COLOR, is_color);
 		item->state = SKB__ITEM_STATE_INITIALIZED;
 		item->texture_idx = (uint8_t)texture_idx;
@@ -1106,6 +1110,7 @@ skb_quad_t skb_image_atlas_get_glyph_quad(
 	quad.texture_idx = item->texture_idx;
 	SKB_SET_FLAG(quad.flags, SKB_QUAD_IS_COLOR, item->flags & SKB__ITEM_IS_COLOR);
 	SKB_SET_FLAG(quad.flags, SKB_QUAD_IS_SDF, item->flags & SKB__ITEM_IS_SDF);
+	SKB_SET_FLAG(quad.flags, SKB_QUAD_IS_MSDF, item->flags & SKB__ITEM_IS_MSDF);
 	quad.color = (item->flags & SKB__ITEM_IS_COLOR) ? skb_rgba(255,255,255, tint_color.a) : tint_color;
 
 	return quad;
@@ -1502,7 +1507,9 @@ bool skb_image_atlas_rasterize_missing_items(skb_image_atlas_t* atlas, skb_temp_
 					.height = item->height,
 				};
 
-				const skb_rasterize_alpha_mode_t alpha_mode = (item->flags & SKB__ITEM_IS_SDF) ? SKB_RASTERIZE_ALPHA_SDF : SKB_RASTERIZE_ALPHA_MASK;
+				const bool is_msdf = (item->flags & SKB__ITEM_IS_MSDF) != 0;
+				const skb_rasterize_alpha_mode_t alpha_mode = is_msdf ? SKB_RASTERIZE_ALPHA_MSDF :
+					((item->flags & SKB__ITEM_IS_SDF) ? SKB_RASTERIZE_ALPHA_SDF : SKB_RASTERIZE_ALPHA_MASK);
 				skb_atlas_texture_t* texture = &atlas->textures[item->texture_idx];
 
 				skb_image_t target = {0};
@@ -1519,6 +1526,10 @@ bool skb_image_atlas_rasterize_missing_items(skb_image_atlas_t* atlas, skb_temp_
 					if (item->flags & SKB__ITEM_IS_COLOR) {
 						skb_rasterizer_draw_color_glyph(
 							rasterizer, temp_alloc, item->glyph.gid, item->glyph.font, item->glyph.clamped_font_size, alpha_mode,
+							-item->geom_offset_x, -item->geom_offset_y, &target);
+					} else if (is_msdf) {
+						skb_rasterizer_draw_msdf_glyph(
+							rasterizer, temp_alloc, item->glyph.gid, item->glyph.font, item->glyph.clamped_font_size,
 							-item->geom_offset_x, -item->geom_offset_y, &target);
 					} else {
 						skb_rasterizer_draw_alpha_glyph(

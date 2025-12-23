@@ -51,6 +51,7 @@ typedef struct skb_rasterizer_config_t {
 typedef enum {
 	SKB_RASTERIZE_ALPHA_MASK, /**< Rasterize alpha channel as mask. */
 	SKB_RASTERIZE_ALPHA_SDF, /**< Rasterize alpha channel as sign distance field. */
+	SKB_RASTERIZE_ALPHA_MSDF, /**< Rasterize as multi-channel signed distance field (RGB). */
 } skb_rasterize_alpha_mode_t;
 
 /**
@@ -107,6 +108,24 @@ skb_rect2i_t skb_rasterizer_get_glyph_dimensions(uint32_t glyph_id, const skb_fo
 bool skb_rasterizer_draw_alpha_glyph(
 	skb_rasterizer_t* rasterizer, skb_temp_alloc_t* temp_alloc,
 	uint32_t glyph_id, const skb_font_t* font, float font_size, skb_rasterize_alpha_mode_t alpha_mode,
+	float offset_x, float offset_y, skb_image_t* target);
+
+/**
+ * Rasterizes a glyph as MSDF (multi-channel signed distance field).
+ * The offset and image size can be obtained using skb_rasterizer_get_glyph_dimensions().
+ * @param rasterizer pointer to rasterizer.
+ * @param temp_alloc pointer to temp alloc used during the rasterization.
+ * @param glyph_id glyph id to rasterize.
+ * @param font font where to get the glyph data.
+ * @param font_size font size.
+ * @param offset_x offset x where to rasterize the glyph.
+ * @param offset_y offset y where to rasterize the glyph.
+ * @param target target image to rasterize to. The image must be 3 bytes-per-pixel (RGB).
+ * @return true if the rasterization succeeded.
+ */
+bool skb_rasterizer_draw_msdf_glyph(
+	skb_rasterizer_t* rasterizer, skb_temp_alloc_t* temp_alloc,
+	uint32_t glyph_id, const skb_font_t* font, float font_size,
 	float offset_x, float offset_y, skb_image_t* target);
 
 /**
