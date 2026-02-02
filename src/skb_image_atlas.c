@@ -346,6 +346,12 @@ skb_image_atlas_config_t skb_image_atlas_get_config(skb_image_atlas_t* atlas)
 	return atlas->config;
 }
 
+void skb_image_atlas_set_evict_duration(skb_image_atlas_t* atlas, int32_t duration)
+{
+	assert(atlas);
+	atlas->config.evict_inactive_duration = duration;
+}
+
 void skb_image_atlas_set_create_texture_callback(skb_image_atlas_t* atlas, skb_create_texture_func_t* create_texture_callback, void* context)
 {
 	assert(atlas);

@@ -180,6 +180,14 @@ skb_image_atlas_config_t skb_image_atlas_get_default_config(void);
 skb_image_atlas_config_t skb_image_atlas_get_config(skb_image_atlas_t* atlas);
 
 /**
+ * Sets the eviction duration for inactive items.
+ * Items not used for this many frames will be evicted during compact().
+ * @param atlas atlas to use.
+ * @param duration number of frames before eviction (0 to disable eviction).
+ */
+void skb_image_atlas_set_evict_duration(skb_image_atlas_t* atlas, int32_t duration);
+
+/**
  * Sets the texture creation callback of the image atlas.
  * @param atlas atlas to use.
  * @param create_texture_callback pointer to the callback function.
