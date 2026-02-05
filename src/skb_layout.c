@@ -3175,6 +3175,52 @@ void skb_layout_destroy(skb_layout_t* layout)
 		skb_free(layout);
 }
 
+void skb_layout_realign(skb_layout_t* layout, float new_layout_width)
+{
+	if (!layout || layout->lines_count == 0) return;
+
+	const bool layout_is_rtl = skb_is_rtl(layout->resolved_direction);
+	const skb_align_t horizontal_align = skb_attributes_get_horizontal_align(layout->params.layout_attributes, layout->params.attribute_collection);
+	const float paragraph_padding_left = layout->padding.left;
+	const float paragraph_padding_right = layout->padding.right;
+	const float new_inner_width = skb_maxf(0.f, new_layout_width - paragraph_padding_left - paragraph_padding_right);
+
+	/* Realign each line */
+	for (int32_t li = 0; li < layout->lines_count; li++) {
+		skb_layout_line_t* line = &layout->lines[li];
+		const float line_content_width = skb_maxf(0.f, line->bounds.width - line->padding_left - line->padding_right);
+		const float old_x = line->bounds.x;
+		line->bounds.x = paragraph_padding_left - line->padding_left + skb_calc_align_offset(
+			skb_get_directional_align(layout_is_rtl, horizontal_align), line_content_width, new_inner_width);
+		const float delta_x = line->bounds.x - old_x;
+		if (delta_x == 0.f) continue;
+
+		/* Shift runs and glyphs */
+		for (int32_t ri = line->layout_run_range.start; ri < line->layout_run_range.end; ri++) {
+			skb_layout_run_t* layout_run = &layout->layout_runs[ri];
+			layout_run->bounds.x += delta_x;
+			for (int32_t gi = layout_run->glyph_range.start; gi < layout_run->glyph_range.end; gi++) {
+				layout->glyphs[gi].offset_x += delta_x;
+			}
+		}
+
+		/* Shift decorations */
+		for (int32_t di = line->decorations_range.start; di < line->decorations_range.end; di++) {
+			if (layout->decorations[di].type == SKB_DECORATION_LINE) {
+				layout->decorations[di].line.x += delta_x;
+			} else if (layout->decorations[di].type == SKB_DECORATION_RECT) {
+				layout->decorations[di].rect.x += delta_x;
+			}
+		}
+	}
+
+	/* Update layout bounds and params */
+	const float content_width = layout->bounds.width - paragraph_padding_left - paragraph_padding_right;
+	layout->bounds.x = skb_calc_align_offset(
+		skb_get_directional_align(layout_is_rtl, horizontal_align), content_width, new_inner_width);
+	layout->params.layout_width = new_layout_width;
+}
+
 const skb_layout_params_t* skb_layout_get_params(const skb_layout_t* layout)
 {
 	assert(layout);

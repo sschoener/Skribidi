@@ -579,6 +579,15 @@ void skb_layout_reset(skb_layout_t* layout);
 void skb_layout_destroy(skb_layout_t* layout);
 
 /**
+ * Cheaply adjusts a layout's horizontal alignment for a new width without re-shaping or re-wrapping.
+ * Only valid when new_layout_width >= the layout's natural content width (i.e. line breaks don't change).
+ * Shifts line, run, glyph, and decoration x-positions by the alignment delta.
+ * @param layout layout to realign.
+ * @param new_layout_width new layout box width.
+ */
+void skb_layout_realign(skb_layout_t* layout, float new_layout_width);
+
+/**
  * Returns parameters that were used to create th elayout.
  * @param layout layout to use
  * @return const pointer to the parameters.
