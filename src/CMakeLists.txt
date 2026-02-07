@@ -196,29 +196,38 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/../include" PREFIX "include" FILE
 
 # Only install when building skribidi standalone (not as subdirectory)
 if(PROJECT_IS_TOP_LEVEL)
-  install(
-    TARGETS skribidi
-    EXPORT skribidiConfig
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-  )
+  if(EMSCRIPTEN)
+    install(
+      TARGETS skribidi
+      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+      ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
+  else()
+    install(
+      TARGETS skribidi
+      EXPORT skribidiConfig
+      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+      ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
 
-  install(
-    EXPORT skribidiConfig
-    NAMESPACE skribidi::
-    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/skribidi"
-  )
+    install(
+      EXPORT skribidiConfig
+      NAMESPACE skribidi::
+      DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/skribidi"
+    )
 
-  include(CMakePackageConfigHelpers)
+    include(CMakePackageConfigHelpers)
 
-  write_basic_package_version_file(
-    "${CMAKE_CURRENT_BINARY_DIR}/skribidiConfigVersion.cmake"
-    COMPATIBILITY SameMajorVersion
-  )
+    write_basic_package_version_file(
+      "${CMAKE_CURRENT_BINARY_DIR}/skribidiConfigVersion.cmake"
+      COMPATIBILITY SameMajorVersion
+    )
 
-  install(
-    FILES "${CMAKE_CURRENT_BINARY_DIR}/skribidiConfigVersion.cmake"
-    DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/skribidi"
-  )
+    install(
+      FILES "${CMAKE_CURRENT_BINARY_DIR}/skribidiConfigVersion.cmake"
+      DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/skribidi"
+    )
+  endif()
 endif()
