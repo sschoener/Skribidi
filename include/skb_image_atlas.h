@@ -91,6 +91,56 @@ typedef struct skb_quad_t {
  */
 typedef void skb_create_texture_func_t(skb_image_atlas_t* atlas, uint8_t texture_idx, void* context);
 
+/** Enum describing atlas item types passed to external raster callbacks. */
+typedef enum {
+	/** A glyph atlas item. */
+	SKB_IMAGE_ATLAS_ITEM_GLYPH = 0,
+	/** An icon atlas item. */
+	SKB_IMAGE_ATLAS_ITEM_ICON,
+	/** A decoration pattern atlas item. */
+	SKB_IMAGE_ATLAS_ITEM_PATTERN,
+} skb_image_atlas_item_type_t;
+
+/** Result returned by an external atlas raster callback. */
+typedef enum {
+	/** The callback did not handle the request and Skribidi should use its internal rasterizer. */
+	SKB_IMAGE_ATLAS_RASTER_UNHANDLED = 0,
+	/** The callback filled the target image for the request. */
+	SKB_IMAGE_ATLAS_RASTER_OK = 1,
+} skb_image_atlas_raster_result_t;
+
+/** Request passed to an external atlas raster callback. */
+typedef struct skb_image_atlas_raster_request_t {
+	/** Type of atlas item to rasterize. */
+	uint8_t item_type;
+	/** Internal item flags describing the requested image. */
+	uint8_t flags;
+	/** Requested alpha rasterization mode. */
+	uint8_t alpha_mode;
+	/** Bytes per pixel in the target image. */
+	uint8_t bpp;
+	/** Font handle for glyph items. Runtime identifier only; not stable across runs. */
+	skb_font_handle_t font_handle;
+	/** Glyph id for glyph items. */
+	uint32_t glyph_id;
+	/** Clamped raster font size for glyph items. */
+	float font_size;
+	/** Width of the target image in pixels. */
+	int32_t width;
+	/** Height of the target image in pixels. */
+	int32_t height;
+	/** X offset used to place the rasterized item relative to its geometry. */
+	int32_t geom_offset_x;
+	/** Y offset used to place the rasterized item relative to its geometry. */
+	int32_t geom_offset_y;
+	/** Atlas image slice to fill. */
+	skb_image_t target;
+} skb_image_atlas_raster_request_t;
+
+/** Signature of an external atlas raster callback. */
+typedef skb_image_atlas_raster_result_t skb_image_atlas_raster_func_t(
+	const skb_image_atlas_raster_request_t* request, void* context);
+
 /**
  * Configuration for rendering specific image type.
  * The rounding and clamping is used to control how many size variations of the images are rendered.
@@ -194,6 +244,15 @@ void skb_image_atlas_set_evict_duration(skb_image_atlas_t* atlas, int32_t durati
  * @param context pointer passed to the callback function each time it is called.
  */
 void skb_image_atlas_set_create_texture_callback(skb_image_atlas_t* atlas, skb_create_texture_func_t* create_texture_callback, void* context);
+
+/**
+ * Sets the external raster callback of the image atlas.
+ * The callback is called for missing atlas items before Skribidi uses its internal rasterizer.
+ * @param atlas atlas to use.
+ * @param raster_callback pointer to the callback function.
+ * @param context pointer passed to the callback function each time it is called.
+ */
+void skb_image_atlas_set_raster_callback(skb_image_atlas_t* atlas, skb_image_atlas_raster_func_t* raster_callback, void* context);
 
 /** @return number of textures in the atlas. */
 int32_t skb_image_atlas_get_texture_count(skb_image_atlas_t* atlas);

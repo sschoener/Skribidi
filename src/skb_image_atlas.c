@@ -103,6 +103,7 @@ typedef enum {
 
 typedef struct skb__item_glyph_t {
 	const skb_font_t* font;
+	skb_font_handle_t font_handle;
 	uint32_t gid;
 	float clamped_font_size;
 } skb__item_glyph_t;
@@ -171,6 +172,8 @@ typedef struct skb_image_atlas_t {
 	skb_image_atlas_config_t config;
 	skb_create_texture_func_t* create_texture_callback;
 	void* create_texture_callback_context;
+	skb_image_atlas_raster_func_t* raster_callback;
+	void* raster_callback_context;
 
 } skb_image_atlas_t;
 
@@ -357,6 +360,13 @@ void skb_image_atlas_set_create_texture_callback(skb_image_atlas_t* atlas, skb_c
 	assert(atlas);
 	atlas->create_texture_callback = create_texture_callback;
 	atlas->create_texture_callback_context = context;
+}
+
+void skb_image_atlas_set_raster_callback(skb_image_atlas_t* atlas, skb_image_atlas_raster_func_t* raster_callback, void* context)
+{
+	assert(atlas);
+	atlas->raster_callback = raster_callback;
+	atlas->raster_callback_context = context;
 }
 
 int32_t skb_image_atlas_get_texture_count(skb_image_atlas_t* atlas)
@@ -1064,6 +1074,7 @@ skb_quad_t skb_image_atlas_get_glyph_quad(
 		item = &atlas->items[item_idx];
 		item->type = SKB__ITEM_TYPE_GLYPH;
 		item->glyph.font = font;
+		item->glyph.font_handle = font_handle;
 		item->glyph.gid = glyph_id;
 		item->glyph.clamped_font_size = clamped_font_size;
 		item->width = (int16_t)bounds.width;
@@ -1527,30 +1538,53 @@ bool skb_image_atlas_rasterize_missing_items(skb_image_atlas_t* atlas, skb_temp_
 
 				assert(texture->image.stride_bytes == texture->image.width * texture->image.bpp);
 
-				if (item->type == SKB__ITEM_TYPE_GLYPH) {
-					// Rasterize glyph
-					if (item->flags & SKB__ITEM_IS_COLOR) {
-						skb_rasterizer_draw_color_glyph(
-							rasterizer, temp_alloc, item->glyph.gid, item->glyph.font, item->glyph.clamped_font_size, alpha_mode,
-							-item->geom_offset_x, -item->geom_offset_y, &target);
-					} else if (is_msdf) {
-						skb_rasterizer_draw_msdf_glyph(
-							rasterizer, temp_alloc, item->glyph.gid, item->glyph.font, item->glyph.clamped_font_size,
-							-item->geom_offset_x, -item->geom_offset_y, &target);
-					} else {
-						skb_rasterizer_draw_alpha_glyph(
-							rasterizer, temp_alloc, item->glyph.gid, item->glyph.font, item->glyph.clamped_font_size, alpha_mode,
-							-item->geom_offset_x, -item->geom_offset_y, &target);
+				bool rasterized = false;
+				if (atlas->raster_callback) {
+					skb_image_atlas_raster_request_t request = {
+						.item_type = item->type,
+						.flags = item->flags,
+						.alpha_mode = (uint8_t)alpha_mode,
+						.bpp = target.bpp,
+						.width = item->width,
+						.height = item->height,
+						.geom_offset_x = item->geom_offset_x,
+						.geom_offset_y = item->geom_offset_y,
+						.target = target,
+					};
+					if (item->type == SKB__ITEM_TYPE_GLYPH) {
+						request.font_handle = item->glyph.font_handle;
+						request.glyph_id = item->glyph.gid;
+						request.font_size = item->glyph.clamped_font_size;
 					}
-				} else if (item->type == SKB__ITEM_TYPE_ICON) {
-					// Rasterize icon
-					if (item->flags & SKB__ITEM_IS_COLOR) {
-						skb_rasterizer_draw_color_icon( rasterizer, temp_alloc, item->icon.icon, item->icon.icon_scale, alpha_mode, -item->geom_offset_x, -item->geom_offset_y, &target);
-					} else {
-						skb_rasterizer_draw_alpha_icon( rasterizer, temp_alloc, item->icon.icon, item->icon.icon_scale, alpha_mode, -item->geom_offset_x, -item->geom_offset_y, &target);
+					rasterized = atlas->raster_callback(&request, atlas->raster_callback_context) == SKB_IMAGE_ATLAS_RASTER_OK;
+				}
+
+				if (!rasterized) {
+					if (item->type == SKB__ITEM_TYPE_GLYPH) {
+						// Rasterize glyph
+						if (item->flags & SKB__ITEM_IS_COLOR) {
+							skb_rasterizer_draw_color_glyph(
+								rasterizer, temp_alloc, item->glyph.gid, item->glyph.font, item->glyph.clamped_font_size, alpha_mode,
+								-item->geom_offset_x, -item->geom_offset_y, &target);
+						} else if (is_msdf) {
+							skb_rasterizer_draw_msdf_glyph(
+								rasterizer, temp_alloc, item->glyph.gid, item->glyph.font, item->glyph.clamped_font_size,
+								-item->geom_offset_x, -item->geom_offset_y, &target);
+						} else {
+							skb_rasterizer_draw_alpha_glyph(
+								rasterizer, temp_alloc, item->glyph.gid, item->glyph.font, item->glyph.clamped_font_size, alpha_mode,
+								-item->geom_offset_x, -item->geom_offset_y, &target);
+						}
+					} else if (item->type == SKB__ITEM_TYPE_ICON) {
+						// Rasterize icon
+						if (item->flags & SKB__ITEM_IS_COLOR) {
+							skb_rasterizer_draw_color_icon( rasterizer, temp_alloc, item->icon.icon, item->icon.icon_scale, alpha_mode, -item->geom_offset_x, -item->geom_offset_y, &target);
+						} else {
+							skb_rasterizer_draw_alpha_icon( rasterizer, temp_alloc, item->icon.icon, item->icon.icon_scale, alpha_mode, -item->geom_offset_x, -item->geom_offset_y, &target);
+						}
+					} else if (item->type == SKB__ITEM_TYPE_PATTERN) {
+						skb_rasterizer_draw_decoration_pattern( rasterizer, temp_alloc, item->pattern.style, item->pattern.thickness, alpha_mode, -item->geom_offset_x, -item->geom_offset_y, &target);
 					}
-				} else if (item->type == SKB__ITEM_TYPE_PATTERN) {
-					skb_rasterizer_draw_decoration_pattern( rasterizer, temp_alloc, item->pattern.style, item->pattern.thickness, alpha_mode, -item->geom_offset_x, -item->geom_offset_y, &target);
 				}
 
 				texture->dirty_bounds = skb_rect2i_union(texture->dirty_bounds, atlas_bounds);
