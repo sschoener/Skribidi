@@ -1567,9 +1567,7 @@ bool skb_image_atlas_rasterize_missing_items(skb_image_atlas_t* atlas, skb_temp_
 								rasterizer, temp_alloc, item->glyph.gid, item->glyph.font, item->glyph.clamped_font_size, alpha_mode,
 								-item->geom_offset_x, -item->geom_offset_y, &target);
 						} else if (is_msdf) {
-							skb_rasterizer_draw_msdf_glyph(
-								rasterizer, temp_alloc, item->glyph.gid, item->glyph.font, item->glyph.clamped_font_size,
-								-item->geom_offset_x, -item->geom_offset_y, &target);
+							assert(!"MSDF glyph rasterization requires an external atlas raster callback");
 						} else {
 							skb_rasterizer_draw_alpha_glyph(
 								rasterizer, temp_alloc, item->glyph.gid, item->glyph.font, item->glyph.clamped_font_size, alpha_mode,

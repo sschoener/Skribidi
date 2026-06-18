@@ -91,21 +91,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(budouxc)
 
-# msdfgen (for MSDF text rendering)
-FetchContent_Declare(
-	msdfgen
-	GIT_REPOSITORY https://github.com/Chlumsky/msdfgen.git
-	GIT_TAG v1.12
-	GIT_SHALLOW TRUE
-	GIT_PROGRESS TRUE
-)
-set(MSDFGEN_CORE_ONLY ON CACHE BOOL "" FORCE)
-set(MSDFGEN_BUILD_STANDALONE OFF CACHE BOOL "" FORCE)
-set(MSDFGEN_USE_SKIA OFF CACHE BOOL "" FORCE)
-set(MSDFGEN_USE_VCPKG OFF CACHE BOOL "" FORCE)
-set(MSDFGEN_INSTALL OFF CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(msdfgen)
-
 #
 # Project files
 #
@@ -133,7 +118,6 @@ set(SKRIBIDI_SOURCE_FILES
 	skb_rich_text_internal.h
 	skb_text.c
 	skb_text_internal.h
-	skb_msdf.cpp
 )
 
 set(SKRIBIDI_API_FILES
@@ -181,7 +165,7 @@ if(NOT WIN32)
 	target_link_libraries(skribidi PUBLIC m)
 endif()
 
-target_link_libraries(skribidi PRIVATE harfbuzz SheenBidi libunibreak budouxc msdfgen-core)
+target_link_libraries(skribidi PRIVATE harfbuzz SheenBidi libunibreak budouxc)
 
 if(MINGW)
     target_compile_options(harfbuzz PRIVATE -Wa,-mbig-obj)
