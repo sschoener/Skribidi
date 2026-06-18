@@ -282,6 +282,19 @@ static int skb__bidi_run_cmp(const void* a, const void* b)
 	return (int)run_a->offset - (int)run_b->offset;
 }
 
+static void* skb__sheenbidi_alloc(SBUInteger size, void* info)
+{
+	assert(info);
+	assert(size <= INT32_MAX);
+	return skb_temp_alloc_alloc((skb_temp_alloc_t*)info, (int32_t)size);
+}
+
+static void skb__sheenbidi_free(void* pointer, void* info)
+{
+	(void)pointer;
+	(void)info;
+}
+
 static void skb__itemize(skb__layout_build_context_t* build_context, skb_layout_t* layout)
 {
 	const skb_text_direction_t base_direction = skb_attributes_get_text_base_direction(layout->params.layout_attributes, layout->params.attribute_collection);
@@ -299,18 +312,30 @@ static void skb__itemize(skb__layout_build_context_t* build_context, skb_layout_
 		base_level = 0;
 
 	SBCodepointSequence codepoint_seq = { SBStringEncodingUTF32, layout->text, layout->text_count };
+	SBAllocator sheenbidi_allocator = {
+		.info = build_context->temp_alloc,
+		.allocateBlock = skb__sheenbidi_alloc,
+		.reallocateBlock = NULL,
+		.deallocateBlock = skb__sheenbidi_free,
+		.allocateScratch = skb__sheenbidi_alloc,
+		.resetScratch = NULL,
+	};
 
 	// Resolve scripts for codepoints.
-	SBScriptLocatorRef script_locator = SBScriptLocatorCreate();
-	SBScriptLocatorLoadCodepoints(script_locator, &codepoint_seq);
-	while (SBScriptLocatorMoveNext(script_locator)) {
-		const SBScriptAgent* agent = SBScriptLocatorGetAgent(script_locator);
-		const int32_t run_start = (int32_t)agent->offset;
-		const int32_t run_end = (int32_t)(agent->offset + agent->length);
-		for (int32_t i = run_start; i < run_end; i++)
-			layout->text_props[i].script = agent->script;
+	{
+		skb_temp_alloc_mark_t mark = skb_temp_alloc_save(build_context->temp_alloc);
+		SBScriptLocatorRef script_locator = SBScriptLocatorCreate(&sheenbidi_allocator);
+		SBScriptLocatorLoadCodepoints(script_locator, &codepoint_seq);
+		while (SBScriptLocatorMoveNext(script_locator)) {
+			const SBScriptAgent* agent = SBScriptLocatorGetAgent(script_locator);
+			const int32_t run_start = (int32_t)agent->offset;
+			const int32_t run_end = (int32_t)(agent->offset + agent->length);
+			for (int32_t i = run_start; i < run_end; i++)
+				layout->text_props[i].script = agent->script;
+		}
+		SBScriptLocatorRelease(script_locator);
+		skb_temp_alloc_restore(build_context->temp_alloc, mark);
 	}
-	SBScriptLocatorRelease(script_locator);
 
 	// Special case, the text starts with common script, look forward to find the first non-implicit script.
 	if (layout->text_count && layout->text_props[0].script == SB_SCRIPT_COMMON) {
@@ -336,7 +361,8 @@ static void skb__itemize(skb__layout_build_context_t* build_context, skb_layout_
 	build_context->emoji_types_buffer = SKB_TEMP_ALLOC(build_context->temp_alloc, uint8_t, layout->text_count);
 
 	// Iterate over the text until we have processed all paragraphs.
-	SBAlgorithmRef bidi_algorithm = SBAlgorithmCreate(&codepoint_seq);
+	skb_temp_alloc_mark_t bidi_mark = skb_temp_alloc_save(build_context->temp_alloc);
+	SBAlgorithmRef bidi_algorithm = SBAlgorithmCreate(&codepoint_seq, &sheenbidi_allocator);
 	int32_t paragraph_start = 0;
 	while (paragraph_start < layout->text_count) {
 		const SBParagraphRef bidi_paragraph = SBAlgorithmCreateParagraph(bidi_algorithm, paragraph_start, INT32_MAX, base_level);
@@ -490,6 +516,7 @@ static void skb__itemize(skb__layout_build_context_t* build_context, skb_layout_
 	}
 
 	SBAlgorithmRelease(bidi_algorithm);
+	skb_temp_alloc_restore(build_context->temp_alloc, bidi_mark);
 }
 
 

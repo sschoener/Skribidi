@@ -18,8 +18,8 @@ FetchContent_MakeAvailable(harfbuzz)
 # sheenbidi
 FetchContent_Declare(
 	SheenBidi
-	GIT_REPOSITORY https://github.com/Tehreer/SheenBidi.git
-	GIT_TAG 83f77108a2873600283f6da4b326a2dca7a3a7a6 # Jun 6, 2025
+	GIT_REPOSITORY https://github.com/sschoener/SheenBidi.git
+	GIT_TAG 4822a3d3d01e4755e0de965b4fbc55b2f39254ba # Allocator-aware API
 	GIT_SHALLOW TRUE
 	GIT_PROGRESS TRUE
 )
