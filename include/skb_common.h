@@ -1648,6 +1648,15 @@ int64_t skb_perf_timer_elapsed_us(int64_t start, int64_t end);
 
 /** @} */
 
+#if defined(__wasm32__) && !defined(__wasi__) && !defined(__wasi) && !defined(__emscripten__) && !defined(EMSCRIPTEN)
+#ifndef SKB_PLATFORM_FREESTANDING
+#define SKB_PLATFORM_FREESTANDING
+#endif
+#ifndef SKB_NO_OPEN
+#define SKB_NO_OPEN
+#endif
+#endif
+
 #if defined( linux ) || defined( __linux__ ) || defined( __FreeBSD__ ) ||                       \
 	defined( __OpenBSD__ ) || defined( __NetBSD__ ) || defined( __DragonFly__ ) ||              \
 	defined( __SVR4 ) || defined( __sun ) || defined( __APPLE_CC__ ) || defined( __APPLE__ ) || \

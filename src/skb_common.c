@@ -66,6 +66,25 @@ int64_t skb_perf_timer_elapsed_us(int64_t start, int64_t end)
 	return (end - start) / 1000;
 }
 
+#elif defined(SKB_PLATFORM_FREESTANDING)
+
+void skb_debug_log(const char* format, ...)
+{
+	(void)format;
+}
+
+int64_t skb_perf_timer_get(void)
+{
+	return 0;
+}
+
+int64_t skb_perf_timer_elapsed_us(int64_t start, int64_t end)
+{
+	(void)start;
+	(void)end;
+	return 0;
+}
+
 #else
 
 #warning "Unsupported platform some feature might be missing."
@@ -90,32 +109,89 @@ int64_t skb_perf_timer_elapsed_us(int64_t start, int64_t end)
 
 #endif
 
+#if defined(SKB_CUSTOM_ALLOCATOR)
+void* skb_malloc_impl(size_t size);
+void* skb_realloc_impl(void* ptr, size_t new_size);
+void skb_free_impl(void* ptr);
+#endif
+
 void* skb_malloc(size_t size)
 {
+#if defined(SKB_CUSTOM_ALLOCATOR)
+	void* ptr = skb_malloc_impl(size);
+#else
 	void* ptr = malloc(size);
+#endif
 	assert(ptr);
 	return ptr;
 }
 
 void* skb_malloc_zero(size_t size)
 {
-	void* ptr = malloc(size);
-	assert(ptr);
+	void* ptr = skb_malloc(size);
 	memset(ptr, 0, size);
 	return ptr;
 }
 
 void* skb_realloc(void* ptr, size_t new_size)
 {
+#if defined(SKB_CUSTOM_ALLOCATOR)
+	void* new_ptr = skb_realloc_impl(ptr, new_size);
+#else
 	void* new_ptr = realloc(ptr, new_size);
+#endif
 	assert(new_ptr);
 	return new_ptr;
 }
 
 void skb_free(void* ptr)
 {
+#if defined(SKB_CUSTOM_ALLOCATOR)
+	skb_free_impl(ptr);
+#else
 	free(ptr);
+#endif
 }
+
+#if defined(SKB_HARFBUZZ_CUSTOM_ALLOCATOR)
+void* hb_malloc_impl(size_t size)
+{
+	return skb_malloc(size);
+}
+
+void* hb_calloc_impl(size_t count, size_t size)
+{
+	assert(count == 0 || size <= SIZE_MAX / count);
+	return skb_malloc_zero(count * size);
+}
+
+void* hb_realloc_impl(void* ptr, size_t size)
+{
+	return skb_realloc(ptr, size);
+}
+
+void hb_free_impl(void* ptr)
+{
+	skb_free(ptr);
+}
+#endif
+
+#if defined(SKB_HARFBUZZ_NO_OPEN)
+typedef struct hb_blob_t hb_blob_t;
+hb_blob_t* hb_blob_get_empty(void);
+
+hb_blob_t* hb_blob_create_from_file_or_fail(const char* file_name)
+{
+	(void)file_name;
+	return NULL;
+}
+
+hb_blob_t* hb_blob_create_from_file(const char* file_name)
+{
+	(void)file_name;
+	return hb_blob_get_empty();
+}
+#endif
 
 
 //

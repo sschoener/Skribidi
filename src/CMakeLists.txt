@@ -4,6 +4,8 @@ if(POLICY CMP0135)
 	cmake_policy(SET CMP0135 NEW) # avoid warning about DOWNLOAD_EXTRACT_TIMESTAMP in CMake 3.24+
 endif()
 
+option(SKRIBIDI_WASM_FREESTANDING "Build with a freestanding-compatible wasm feature set." OFF)
+
 # harfbuzz
 FetchContent_Declare(
 	harfbuzz
@@ -14,6 +16,27 @@ FetchContent_Declare(
 )
 set(HB_BUILD_SUBSET OFF)
 FetchContent_MakeAvailable(harfbuzz)
+
+if(SKRIBIDI_WASM_FREESTANDING)
+	target_compile_definitions(harfbuzz PRIVATE
+		HB_CUSTOM_MALLOC
+		HB_NO_MT
+		HB_NO_MMAP
+		HB_NO_OPEN
+		HB_NO_SETLOCALE
+		HB_NO_ATEXIT
+		HB_NO_GETENV
+		HB_NO_BUFFER_MESSAGE
+		HB_NO_BUFFER_SERIALIZE
+		HB_NO_BUFFER_VERIFY
+		HB_NO_ERRNO
+		_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_NONE
+	)
+	target_compile_options(harfbuzz PRIVATE
+		$<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>
+		$<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>
+	)
+endif()
 
 # sheenbidi
 FetchContent_Declare(
@@ -140,6 +163,16 @@ set(SKRIBIDI_API_FILES
 
 
 add_library(skribidi ${SKRIBIDI_SOURCE_FILES} ${SKRIBIDI_API_FILES})
+
+if(SKRIBIDI_WASM_FREESTANDING)
+	target_compile_definitions(skribidi PRIVATE
+		SKB_CUSTOM_ALLOCATOR
+		SKB_HARFBUZZ_CUSTOM_ALLOCATOR
+		SKB_HARFBUZZ_NO_OPEN
+		SKB_NO_OPEN
+		SKB_PLATFORM_FREESTANDING
+	)
+endif()
 
 target_include_directories(skribidi
   PUBLIC
